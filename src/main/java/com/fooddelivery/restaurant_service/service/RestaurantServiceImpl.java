@@ -1,10 +1,12 @@
 package com.fooddelivery.restaurant_service.service;
 
+import com.fooddelivery.restaurant_service.client.AdminRestoClient;
 import com.fooddelivery.restaurant_service.dto.RestaurantDTO;
 import com.fooddelivery.restaurant_service.model.Restaurant;
 import com.fooddelivery.restaurant_service.repository.RestaurantRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +18,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class RestaurantServiceImpl implements RestaurantService {
 
+    private static final Logger logger = LoggerFactory.getLogger(RestaurantServiceImpl.class);
+
     private final RestaurantRepository restaurantRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final AdminRestoClient adminRestoClient;
 
     // Add a new restaurant
     @Override
@@ -28,11 +32,16 @@ public class RestaurantServiceImpl implements RestaurantService {
                 .email(dto.getEmail())
                 .address(dto.getAddress())
                 .phone(dto.getPhone())
-                .password(passwordEncoder.encode(dto.getPassword())) // encode password
+                .password(dto.getPassword())
                 .build();
 
         Restaurant saved = restaurantRepository.save(restaurant);
-        return mapToDTO(saved);
+        RestaurantDTO savedDTO = mapToDTO(saved);
+
+        // Sync creation to admin service
+        syncCreateWithAdminService(savedDTO);
+
+        return savedDTO;
     }
 
     // Update an existing restaurant
@@ -45,11 +54,16 @@ public class RestaurantServiceImpl implements RestaurantService {
         if (dto.getPhone() != null) restaurant.setPhone(dto.getPhone());
         if (dto.getEmail() != null) restaurant.setEmail(dto.getEmail());
         if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
-            restaurant.setPassword(passwordEncoder.encode(dto.getPassword()));
+            restaurant.setPassword(dto.getPassword());
         }
 
         Restaurant updated = restaurantRepository.save(restaurant);
-        return mapToDTO(updated);
+        RestaurantDTO updatedDTO = mapToDTO(updated);
+
+        // Sync update to admin service
+        syncUpdateWithAdminService(id, updatedDTO);
+
+        return updatedDTO;
     }
 
     // Delete a restaurant by id
@@ -59,6 +73,9 @@ public class RestaurantServiceImpl implements RestaurantService {
             throw new RuntimeException("Restaurant not found with id: " + id);
         }
         restaurantRepository.deleteById(id);
+
+        // Sync deletion to admin service
+        syncDeleteWithAdminService(id);
     }
 
     // Get all restaurants
@@ -95,5 +112,38 @@ public class RestaurantServiceImpl implements RestaurantService {
                 .build();
     }
 
+    // Sync restaurant creation to admin service
+    private void syncCreateWithAdminService(RestaurantDTO dto) {
+        try {
+            adminRestoClient.createRestaurant(dto);
+            logger.info("Successfully synced restaurant {} creation to admin service", dto.getId());
+        } catch (Exception e) {
+            logger.error("Failed to sync restaurant {} creation to admin service: {}", dto.getId(), e.getMessage(), e);
+            // Don't throw exception - restaurant service should not fail if admin service is down
+        }
+    }
+
+    // Sync restaurant update to admin service
+    private void syncUpdateWithAdminService(Long id, RestaurantDTO dto) {
+        try {
+            adminRestoClient.updateRestaurant(id, dto);
+            logger.info("Successfully synced restaurant {} update to admin service", id);
+        } catch (Exception e) {
+            logger.error("Failed to sync restaurant {} update to admin service: {}", id, e.getMessage(), e);
+            // Don't throw exception - restaurant service should not fail if admin service is down
+        }
+    }
+
+    // Sync restaurant deletion to admin service
+    private void syncDeleteWithAdminService(Long id) {
+        try {
+            adminRestoClient.deleteRestaurant(id);
+            logger.info("Successfully synced restaurant {} deletion to admin service", id);
+        } catch (Exception e) {
+            logger.error("Failed to sync restaurant {} deletion to admin service: {}", id, e.getMessage(), e);
+            // Don't throw exception - restaurant service should not fail if admin service is down
+        }
+    }
 
 }
+

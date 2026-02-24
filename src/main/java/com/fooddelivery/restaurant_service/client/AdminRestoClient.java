@@ -24,4 +24,7 @@ public interface AdminRestoClient {
 
     @GetMapping("/api/restaurants")
     ResponseEntity<List<RestaurantDTO>> getAllRestaurants();
+
+    @PutMapping("/api/restaurants/{id}")
+    ResponseEntity<RestaurantDTO> updateRestaurant(@PathVariable("id") Long id, @RequestBody RestaurantDTO restaurantDTO);
 }

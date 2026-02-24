@@ -40,7 +40,10 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/restaurant/auth/**").permitAll()
-                        //.requestMatchers(HttpMethod.POST, "/restaurants").permitAll()// restaurent mch howa yaml post
+                        .requestMatchers(HttpMethod.POST, "/api/restaurants").permitAll()  // Allow admin to create restaurants
+                        .requestMatchers(HttpMethod.GET, "/api/restaurants/**").permitAll()  // Allow getting restaurants
+                        .requestMatchers(HttpMethod.PUT, "/api/restaurants/**").permitAll()  // Allow updates (from admin sync or restaurant themselves with token)
+                        .requestMatchers(HttpMethod.DELETE, "/api/restaurants/**").permitAll()  // Allow deletes (from admin sync)
                         .anyRequest().authenticated()                 // everything else protected
                 )
                 .addFilterBefore(

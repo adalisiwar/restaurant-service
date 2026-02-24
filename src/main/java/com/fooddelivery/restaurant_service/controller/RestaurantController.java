@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @RestController
-@RequestMapping("/restaurants")
+@RequestMapping("/api/restaurants")
 public class RestaurantController {
     private final RestaurantService restaurantService;
     private static final Logger logger = LoggerFactory.getLogger(RestaurantController.class);
@@ -17,28 +17,43 @@ public class RestaurantController {
     public RestaurantController(RestaurantService restaurantService) {
         this.restaurantService = restaurantService;
     }
-// Create a new restaurant
-//@PreAuthorize("hasRole('ADMIN')")
-//@PostMapping
-//public ResponseEntity<RestaurantDTO> createRestaurant(@RequestBody RestaurantDTO restaurantDTO) {
-//        RestaurantDTO createdRestaurant = restaurantService.addRestaurant(restaurantDTO);
-//    return new ResponseEntity<>(createdRestaurant, HttpStatus.CREATED);
-//}
-// Get a restaurant by ID
-//@PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-//@GetMapping("/{id}") public ResponseEntity<RestaurantDTO> getRestaurantById(@PathVariable Long id) {
-//        RestaurantDTO restaurant = restaurantService.getRestaurantById(id);
-//        return ResponseEntity.ok(restaurant); }
 
-    //Update a restaurant w restaurent ya3mel update kn lrou7o
-    @PreAuthorize("hasRole('RESTAURANT')")
+    // Create a new restaurant (for admin sync)
+    @PostMapping
+    public ResponseEntity<RestaurantDTO> createRestaurant(@RequestBody RestaurantDTO restaurantDTO) {
+        RestaurantDTO createdRestaurant = restaurantService.addRestaurant(restaurantDTO);
+        return new ResponseEntity<>(createdRestaurant, HttpStatus.CREATED);
+    }
+
+    // Get a restaurant by ID
+    @GetMapping("/{id}")
+    public ResponseEntity<RestaurantDTO> getRestaurantById(@PathVariable Long id) {
+        RestaurantDTO restaurant = restaurantService.getRestaurantById(id);
+        return ResponseEntity.ok(restaurant);
+    }
+
+    // Update a restaurant - handles both restaurant self-update and admin sync
     @PutMapping("/{id}")
     public ResponseEntity<RestaurantDTO> updateRestaurant(
             @PathVariable Long id,
             @RequestBody RestaurantDTO restaurantDTO,
             Authentication authentication) {
 
-        // authentication.getName() may be an email (token subject). Lookup restaurant by email
+        // If no authentication or not authenticated, allow it (internal sync from admin)
+        if (authentication == null || !authentication.isAuthenticated()) {
+            logger.debug("Updating restaurant {} - unauthenticated request (internal sync from admin)", id);
+            RestaurantDTO updated = restaurantService.updateRestaurant(id, restaurantDTO);
+            return ResponseEntity.ok(updated);
+        }
+
+        // If "anonymousUser" or unauthenticated, allow it (internal sync)
+        if ("anonymousUser".equals(authentication.getName())) {
+            logger.debug("Updating restaurant {} - anonymous request (internal sync from admin)", id);
+            RestaurantDTO updated = restaurantService.updateRestaurant(id, restaurantDTO);
+            return ResponseEntity.ok(updated);
+        }
+
+        // If authenticated, verify it's the restaurant itself
         String subject = authentication.getName();
         logger.debug("updateRestaurant called: pathId={}, tokenSubject={}", id, subject);
         try {
@@ -56,6 +71,13 @@ public class RestaurantController {
             logger.warn("Forbidden: could not find restaurant for subject {}: {}", subject, ex.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
         }
+    }
+
+    // Delete a restaurant by ID
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteRestaurant(@PathVariable Long id) {
+        restaurantService.deleteRestaurant(id);
+        return ResponseEntity.noContent().build();
     }
 }
 

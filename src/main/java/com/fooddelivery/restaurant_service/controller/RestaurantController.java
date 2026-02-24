@@ -2,7 +2,6 @@ package com.fooddelivery.restaurant_service.controller;
 import com.fooddelivery.restaurant_service.dto.RestaurantDTO;
 import com.fooddelivery.restaurant_service.service.RestaurantService;
 import org.springframework.http.HttpStatus; import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
@@ -18,42 +17,36 @@ public class RestaurantController {
         this.restaurantService = restaurantService;
     }
 
-    // Create a new restaurant (for admin sync)
     @PostMapping
     public ResponseEntity<RestaurantDTO> createRestaurant(@RequestBody RestaurantDTO restaurantDTO) {
         RestaurantDTO createdRestaurant = restaurantService.addRestaurant(restaurantDTO);
         return new ResponseEntity<>(createdRestaurant, HttpStatus.CREATED);
     }
 
-    // Get a restaurant by ID
     @GetMapping("/{id}")
     public ResponseEntity<RestaurantDTO> getRestaurantById(@PathVariable Long id) {
         RestaurantDTO restaurant = restaurantService.getRestaurantById(id);
         return ResponseEntity.ok(restaurant);
     }
 
-    // Update a restaurant - handles both restaurant self-update and admin sync
     @PutMapping("/{id}")
     public ResponseEntity<RestaurantDTO> updateRestaurant(
             @PathVariable Long id,
             @RequestBody RestaurantDTO restaurantDTO,
             Authentication authentication) {
 
-        // If no authentication or not authenticated, allow it (internal sync from admin)
         if (authentication == null || !authentication.isAuthenticated()) {
             logger.debug("Updating restaurant {} - unauthenticated request (internal sync from admin)", id);
             RestaurantDTO updated = restaurantService.updateRestaurant(id, restaurantDTO);
             return ResponseEntity.ok(updated);
         }
 
-        // If "anonymousUser" or unauthenticated, allow it (internal sync)
         if ("anonymousUser".equals(authentication.getName())) {
             logger.debug("Updating restaurant {} - anonymous request (internal sync from admin)", id);
             RestaurantDTO updated = restaurantService.updateRestaurant(id, restaurantDTO);
             return ResponseEntity.ok(updated);
         }
 
-        // If authenticated, verify it's the restaurant itself
         String subject = authentication.getName();
         logger.debug("updateRestaurant called: pathId={}, tokenSubject={}", id, subject);
         try {
@@ -73,7 +66,6 @@ public class RestaurantController {
         }
     }
 
-    // Delete a restaurant by ID
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRestaurant(@PathVariable Long id) {
         restaurantService.deleteRestaurant(id);
@@ -82,15 +74,3 @@ public class RestaurantController {
 }
 
 
-// Delete a restaurant
-    //@PreAuthorize("hasRole('ADMIN')")
-//    @DeleteMapping("/{id}")
-//    public ResponseEntity<Void> deleteRestaurant(@PathVariable Long id) {restaurantService.deleteRestaurant(id);
-//        return ResponseEntity.noContent().build(); }
-
-//@GetMapping
-//@PreAuthorize("hasRole('ADMIN') or hasRole('USER')") // optional: allow admin + users
-//public ResponseEntity<List<RestaurantDTO>> getAllRestaurants() {
-//    List<RestaurantDTO> restaurants = restaurantService.getAllRestaurants();
-//    return ResponseEntity.ok(restaurants);
-//}}
